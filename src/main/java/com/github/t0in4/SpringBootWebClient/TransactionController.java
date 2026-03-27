@@ -5,6 +5,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,15 +35,14 @@ public class TransactionController {
     }
 
     @GetMapping("/fraud/{txId}")
-    FraudResponse detectFraud(@PathVariable String txId) {
-        final TransactionDetails transaction = findTransactionById(txId);
-        return webClient
-                .post()
+    public Mono<FraudResponse> detectFraud(@PathVariable String txId) {
+        return Mono.fromCallable(() -> findTransactionById(txId))
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(transaction -> webClient.post()
                 .uri("/inference")
                 .bodyValue(transaction)
                 .retrieve()
-                .bodyToMono(FraudResponse.class)
-                .block();
+                .bodyToMono(FraudResponse.class));
     }
 
     private TransactionDetails findTransactionById(String txId) {
